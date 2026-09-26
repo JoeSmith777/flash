@@ -198,7 +198,7 @@
 <body>
   
   <p>&nbsp;</p>
-  <h1>Grandmaster Flash's Clock Theory V3</h1>
+  <h1>Grandmaster Flash's Clock Theory</h1>
   <p>&nbsp;</p>
   
   <!-- ERKLÄRUNGSTEXT -->
@@ -300,9 +300,11 @@ let audioBuffer = null;
 let bufferSource = null;
 let gainNode = null;
 
-const SCRUB_SENSITIVITY = 0.005; // Pixel zu Sekunden-Verhältnis
+const SCRUB_SENSITIVITY = 0.002; // Pixel zu Sekunden-Verhältnis (langsamer)
 let isDragging = false;
 let lastX = 0;
+let recordStartTime = 0; // Zeitpunkt, wann die Platte gestartet wurde
+let scrubOffset = 0; // Zusätzlicher Offset durch Scratching
 
 // ===== LOAD AUDIO =====
 async function loadAudioBuffer() {
@@ -331,6 +333,8 @@ function createBufferSource() {
 
   bufferSource.connect(gainNode);
   bufferSource.start(0);
+  recordStartTime = audioContext.currentTime;
+  scrubOffset = 0;
 
   console.log('✓ BufferSource erstellt und gestartet');
   document.getElementById('statusText').textContent = 'Läuft – Drag auf die Platte!';
@@ -364,6 +368,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   if (bufferSource) bufferSource.stop();
   bufferSource = null;
   isDragging = false;
+  scrubOffset = 0;
   document.getElementById('statusText').textContent = 'Zurückgesetzt';
   document.getElementById('scratchLight').classList.remove('active');
 });
@@ -381,40 +386,22 @@ recordContainer.addEventListener('mousedown', (e) => {
   isDragging = true;
   lastX = e.clientX;
   recordContainer.classList.add('held');
+  document.getElementById('scratchLight').classList.add('active');
 });
 
-recordContainer.addEventListener('mousemove', (e) => {
+document.addEventListener('mousemove', (e) => {
   if (!isDragging || !bufferSource) return;
 
   const deltaX = e.clientX - lastX;
   lastX = e.clientX;
 
-  // Scrubbing: Audio-Position ändern basierend auf Mausbewegung
-  const currentTime = audioContext.currentTime;
-  const deltaSecs = deltaX * SCRUB_SENSITIVITY;
-  let newTime = currentTime + deltaSecs;
+  // Scrubbing: Offset addieren (nicht komplett neu starten!)
+  scrubOffset += deltaX * SCRUB_SENSITIVITY;
 
-  // In Schleife halten (looping)
-  const duration = audioBuffer.duration;
-  newTime = ((newTime % duration) + duration) % duration;
-
-  // Stop aktuellen Source und starte neu an neuer Position
-  if (bufferSource) {
-    bufferSource.stop();
-  }
-
-  bufferSource = audioContext.createBufferSource();
-  bufferSource.buffer = audioBuffer;
-  bufferSource.loop = true;
-  bufferSource.playbackRate.value = 1.0;
-  bufferSource.connect(gainNode);
-  bufferSource.start(0, newTime);
-
-  // Scratch-Licht blinken
-  document.getElementById('scratchLight').classList.add('active');
+  console.log('Scrubbing:', scrubOffset.toFixed(3));
 });
 
-recordContainer.addEventListener('mouseup', () => {
+document.addEventListener('mouseup', () => {
   if (!isDragging) return;
   isDragging = false;
   recordContainer.classList.remove('held');
@@ -436,23 +423,38 @@ function animationLoop(now) {
     return;
   }
 
-  // ===== UPDATE RECORD ROTATION basierend auf AudioContext-Zeit =====
-  const currentTime = audioContext.currentTime;
+  // ===== BERECHNE AKTUELLE AUDIO-POSITION =====
   const duration = audioBuffer.duration;
-  const progress = (currentTime % duration) / duration;
+  const elapsedTime = audioContext.currentTime - recordStartTime;
+  let currentTime = elapsedTime + scrubOffset;
+
+  // Loop-Handling
+  currentTime = ((currentTime % duration) + duration) % duration;
+
+  // ===== ROTATION BERECHNEN =====
+  const progress = currentTime / duration;
   const rotation = (progress * 360) % 360;
 
+  // ===== BEIDE NADEL UND PLATTE ROTIEREN =====
   document.getElementById('record').style.transform = `rotate(${rotation}deg)`;
-  document.getElementById('needle').style.transform = `rotate(${rotation}deg)`;
   
-  const currentPos = (currentTime % duration).toFixed(2);
+  // SVG: Nadel mit transform attribute
+  const needle = document.getElementById('needle');
+  if (needle) {
+    needle.setAttribute('transform', `rotate(${rotation} 150 150)`);
+  }
+
+  // Status anzeigen
+  const minutes = Math.floor(currentTime / 60);
+  const seconds = (currentTime % 60).toFixed(2);
   document.getElementById('statusText').textContent = 
-    `${currentPos}s / ${duration.toFixed(2)}s`;
+    `${minutes}:${seconds.padStart(5, '0')} / ${duration.toFixed(2)}s`;
 
   requestAnimationFrame(animationLoop);
 }
 
 animationLoop(0);
+
 
 </script>
 
