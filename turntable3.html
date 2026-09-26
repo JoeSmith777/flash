@@ -198,7 +198,7 @@
 <body>
   
   <p>&nbsp;</p>
-  <h1>Grandmaster Flash's Clock Theory 2.0</h1>
+  <h1>Grandmaster Flash's Clock Theory V3</h1>
   <p>&nbsp;</p>
   
   <!-- ERKLÄRUNGSTEXT -->
@@ -300,18 +300,9 @@ let audioBuffer = null;
 let bufferSource = null;
 let gainNode = null;
 
-const SCRATCH_SMOOTHING = 0.12;
-const RETURN_DURATION = 300; // ms zum Zurückfahren
-let currentPlaybackRate = 1.0;
+const SCRUB_SENSITIVITY = 0.005; // Pixel zu Sekunden-Verhältnis
 let isDragging = false;
 let lastX = 0;
-let dragStartX = 0;
-
-// ===== RETURN-TO-POSITION STATE =====
-let isReturning = false;
-let returnStartTime = 0;
-let returnStartPos = 0;
-let returnTargetPos = 0;
 
 // ===== LOAD AUDIO =====
 async function loadAudioBuffer() {
@@ -364,8 +355,6 @@ document.getElementById('btnStop').addEventListener('click', () => {
   if (bufferSource) {
     bufferSource.stop();
     bufferSource = null;
-    currentPlaybackRate = 1.0;
-    isReturning = false;
     document.getElementById('statusText').textContent = 'Gestoppt';
     document.getElementById('scratchLight').classList.remove('active');
   }
@@ -374,8 +363,6 @@ document.getElementById('btnStop').addEventListener('click', () => {
 document.getElementById('btnReset').addEventListener('click', () => {
   if (bufferSource) bufferSource.stop();
   bufferSource = null;
-  currentPlaybackRate = 1.0;
-  isReturning = false;
   isDragging = false;
   document.getElementById('statusText').textContent = 'Zurückgesetzt';
   document.getElementById('scratchLight').classList.remove('active');
@@ -386,39 +373,51 @@ document.getElementById('volumeSlider').addEventListener('input', (e) => {
   gainNode.gain.value = parseFloat(e.target.value);
 });
 
-// ===== MOUSE/TOUCH EVENTS auf recordContainer =====
+// ===== MOUSE EVENTS auf recordContainer =====
 const recordContainer = document.getElementById('recordContainer');
 
 recordContainer.addEventListener('mousedown', (e) => {
   if (!audioBuffer || !bufferSource) return;
   isDragging = true;
-  dragStartX = lastX = e.clientX;
-  isReturning = false; // Abbrechen falls Rückkehr läuft
+  lastX = e.clientX;
   recordContainer.classList.add('held');
 });
 
 recordContainer.addEventListener('mousemove', (e) => {
-  if (!isDragging || !bufferSource || isReturning) return;
+  if (!isDragging || !bufferSource) return;
 
   const deltaX = e.clientX - lastX;
-  currentPlaybackRate += (deltaX * 0.005);
-  currentPlaybackRate = Math.max(0.3, Math.min(3.0, currentPlaybackRate));
-
   lastX = e.clientX;
-  bufferSource.playbackRate.value = currentPlaybackRate;
-  
+
+  // Scrubbing: Audio-Position ändern basierend auf Mausbewegung
+  const currentTime = audioContext.currentTime;
+  const deltaSecs = deltaX * SCRUB_SENSITIVITY;
+  let newTime = currentTime + deltaSecs;
+
+  // In Schleife halten (looping)
+  const duration = audioBuffer.duration;
+  newTime = ((newTime % duration) + duration) % duration;
+
+  // Stop aktuellen Source und starte neu an neuer Position
+  if (bufferSource) {
+    bufferSource.stop();
+  }
+
+  bufferSource = audioContext.createBufferSource();
+  bufferSource.buffer = audioBuffer;
+  bufferSource.loop = true;
+  bufferSource.playbackRate.value = 1.0;
+  bufferSource.connect(gainNode);
+  bufferSource.start(0, newTime);
+
   // Scratch-Licht blinken
   document.getElementById('scratchLight').classList.add('active');
 });
 
-recordContainer.addEventListener('mouseup', (e) => {
-  if (!isDragging || !bufferSource) return;
+recordContainer.addEventListener('mouseup', () => {
+  if (!isDragging) return;
   isDragging = false;
   recordContainer.classList.remove('held');
-
-  // ===== STARTE RÜCKKEHR-ANIMATION =====
-  isReturning = true;
-  returnStartTime = performance.now();
   document.getElementById('scratchLight').classList.remove('active');
 });
 
@@ -426,8 +425,7 @@ recordContainer.addEventListener('mouseleave', () => {
   if (isDragging) {
     isDragging = false;
     recordContainer.classList.remove('held');
-    isReturning = true;
-    returnStartTime = performance.now();
+    document.getElementById('scratchLight').classList.remove('active');
   }
 });
 
@@ -438,37 +436,18 @@ function animationLoop(now) {
     return;
   }
 
-  // ===== HANDLE RETURN-TO-POSITION =====
-  if (isReturning) {
-    const elapsed = performance.now() - returnStartTime;
-    const progress = Math.min(elapsed / RETURN_DURATION, 1.0);
+  // ===== UPDATE RECORD ROTATION basierend auf AudioContext-Zeit =====
+  const currentTime = audioContext.currentTime;
+  const duration = audioBuffer.duration;
+  const progress = (currentTime % duration) / duration;
+  const rotation = (progress * 360) % 360;
 
-    // Easing: ease-out
-    const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-    // Interpoliere PlaybackRate von aktuell → 1.0
-    const targetRate = currentPlaybackRate + (1.0 - currentPlaybackRate) * easeProgress;
-    bufferSource.playbackRate.value = targetRate;
-
-    if (progress >= 1.0) {
-      isReturning = false;
-      currentPlaybackRate = 1.0;
-      bufferSource.playbackRate.value = 1.0;
-    }
-  } else if (!isDragging) {
-    // ===== SMOOTHING: Zurück zu 1.0 =====
-    currentPlaybackRate += (1.0 - currentPlaybackRate) * SCRATCH_SMOOTHING;
-    bufferSource.playbackRate.value = currentPlaybackRate;
-  }
-
-  // ===== UPDATE RECORD ROTATION =====
-  const playbackRate = bufferSource.playbackRate.value;
-  const rotation = (playbackRate * now * 0.1) % 360;
-  
   document.getElementById('record').style.transform = `rotate(${rotation}deg)`;
   document.getElementById('needle').style.transform = `rotate(${rotation}deg)`;
+  
+  const currentPos = (currentTime % duration).toFixed(2);
   document.getElementById('statusText').textContent = 
-    `${(playbackRate * 33.33).toFixed(1)} RPM`;
+    `${currentPos}s / ${duration.toFixed(2)}s`;
 
   requestAnimationFrame(animationLoop);
 }
