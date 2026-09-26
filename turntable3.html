@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grandmaster Flash – Clock Theory Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1a2e;
+      color: #eee;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      color: #f0a500;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: clamp(0.8rem, 2.5vw, 1rem);
+      color: #aaa;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .theory-box {
+      background: #16213e;
+      border: 1px solid #f0a500;
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 600px;
+      width: 100%;
+      margin-bottom: 24px;
+      font-size: clamp(0.8rem, 2.2vw, 0.95rem);
+      line-height: 1.6;
+    }
+
+    .theory-box h2 {
+      color: #f0a500;
+      margin-bottom: 8px;
+      font-size: 1.1em;
+    }
+
+    .turntable-body {
+      background: #2d2d44;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .record-container {
+      position: relative;
+      width: min(300px, 80vw);
+      height: min(300px, 80vw);
+      touch-action: none;
+      cursor: grab;
+    }
+
+    .record-container:active { cursor: grabbing; }
+
+    .record {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      position: absolute;
+      top: 0; left: 0;
+      background-image: repeating-radial-gradient(
+        circle at center,
+        #1a1a1a 0px, #111 2px, #1a1a1a 4px, #111 6px
+      );
+      box-shadow: 0 0 0 3px #333, 0 4px 16px rgba(0,0,0,0.7);
+      transition: box-shadow 0.2s;
+    }
+
+    .record.held {
+      box-shadow: 0 0 0 3px #f0a500, 0 4px 16px rgba(240,165,0,0.3);
+    }
+
+    .record-label {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 35%; height: 35%;
+      border-radius: 50%;
+      background: radial-gradient(circle, #f0a500, #c07800);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(0.4rem, 1.5vw, 0.6rem);
+      font-weight: bold;
+      color: #1a1a2e;
+      text-align: center;
+      pointer-events: none;
+      line-height: 1.2;
+    }
+
+    .record-hole {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #333;
+      pointer-events: none;
+    }
+
+    .clock-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    .status-display {
+      background: #111;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      color: #0f0;
+      font-family: monospace;
+      min-width: 220px;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: clamp(0.9rem, 2.5vw, 1rem);
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.96); }
+    .btn-start  { background: #f0a500; color: #1a1a2e; }
+    .btn-stop   { background: #e05555; color: #fff; }
+    .btn-reset  { background: #444;    color: #eee; }
+
+    .scratch-indicator {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #333;
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.1s;
+    }
+
+    .scratch-indicator.active {
+      background: #0f0;
+      box-shadow: 0 0 8px #0f0;
+    }
+
+    .hint {
+      color: #888;
+      font-size: 0.8rem;
+      text-align: center;
+      margin-top: 8px;
+      max-width: 340px;
+    }
+
+    /* Volume-Regler */
+    .volume-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    input[type=range] {
+      accent-color: #f0a500;
+      width: 120px;
+    }
+  </style>
+</head>
+<body>
+  
+  <p>&nbsp;</p>
+  <h1>Grandmaster Flash's Clock Theory</h1>
+  <p>&nbsp;</p>
+  
+  <!-- ERKLÄRUNGSTEXT -->
+
+  <!-- PLATTENSPIELER -->
+  <div class="turntable-body">
+
+    <!-- Statusanzeige -->
+    <div class="status-display">
+      <span class="scratch-indicator" id="scratchLight"></span>
+      <span id="statusText">Bereit – drücke START</span>
+    </div>
+
+    <!-- Die Schallplatte -->
+    <div class="record-container" id="recordContainer">
+
+      <div class="record" id="record">
+        <div class="record-label">
+          <span>FLASH</span>
+          <span>RECORDS</span>
+          <span style="font-size:0.8em;">33⅓ RPM</span>
+        </div>
+        <div class="record-hole"></div>
+      </div>
+
+      <!-- SVG-Overlay mit Uhrzeiger-Markierungen (bewegt sich NICHT mit) -->
+      <svg class="clock-overlay" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="145" fill="none"
+                stroke="#f0a500" stroke-width="1" stroke-dasharray="4 6" opacity="0.4"/>
+        <!-- 12 Uhr -->
+        <text x="150" y="22" text-anchor="middle" fill="#f0a500"
+              font-size="14" font-weight="bold" font-family="Arial">12</text>
+        <line x1="150" y1="30" x2="150" y2="48"
+              stroke="#f0a500" stroke-width="2" opacity="0.7"/>
+        <!-- 3 Uhr -->
+        <text x="278" y="155" text-anchor="middle" fill="#f0a500"
+              font-size="14" font-weight="bold" font-family="Arial">3</text>
+        <line x1="270" y1="150" x2="252" y2="150"
+              stroke="#f0a500" stroke-width="2" opacity="0.7"/>
+        <!-- 6 Uhr -->
+        <text x="150" y="292" text-anchor="middle" fill="#f0a500"
+              font-size="14" font-weight="bold" font-family="Arial">6</text>
+        <line x1="150" y1="270" x2="150" y2="252"
+              stroke="#f0a500" stroke-width="2" opacity="0.7"/>
+        <!-- 9 Uhr -->
+        <text x="22" y="155" text-anchor="middle" fill="#f0a500"
+              font-size="14" font-weight="bold" font-family="Arial">9</text>
+        <line x1="30" y1="150" x2="48" y2="150"
+              stroke="#f0a500" stroke-width="2" opacity="0.7"/>
+        <!-- Zwischenpositionen -->
+        <text x="245" y="60"  text-anchor="middle" fill="#f0a500"
+              font-size="10" opacity="0.5" font-family="Arial">1:30</text>
+        <text x="245" y="248" text-anchor="middle" fill="#f0a500"
+              font-size="10" opacity="0.5" font-family="Arial">4:30</text>
+        <text x="55"  y="248" text-anchor="middle" fill="#f0a500"
+              font-size="10" opacity="0.5" font-family="Arial">7:30</text>
+        <text x="55"  y="60"  text-anchor="middle" fill="#f0a500"
+              font-size="10" opacity="0.5" font-family="Arial">10:30</text>
+        <!-- Rote Nadel (dreht sich mit der Platte mit) -->
+        <line id="needle" x1="150" y1="150" x2="150" y2="20"
+              stroke="#ff4444" stroke-width="2.5"
+              stroke-linecap="round" opacity="0.85"/>
+        <circle cx="150" cy="150" r="5" fill="#ff4444" opacity="0.85"/>
+      </svg>
+
+    </div><!-- Ende record-container -->
+
+    <!-- Lautstärke-Regler -->
+    <div class="volume-row">
+      <span>🔈</span>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8">
+      <span>🔊</span>
+    </div>
+
+    <!-- Steuerknöpfe -->
+    <div class="controls">
+      <button class="btn btn-start" id="btnStart">▶ START</button>
+      <button class="btn btn-stop"  id="btnStop">⏹ STOP</button>
+      <button class="btn btn-reset" id="btnReset">↺ RESET</button>
+    </div>
+
+  </div><!-- Ende turntable-body -->
+
+  <p class="hint">
+    Die rote Nadel zeigt die Clock-Position.
+  </p>
+
+  <!--
+    WICHTIG: Das <audio>-Tag lädt sample.mp3 ohne fetch() und ohne Webserver.
+    Es funktioniert direkt per file:// im Browser.
+    Die Datei sample.mp3 muss im selben Ordner wie turntable.html liegen.
+  -->
+  <audio id="audioEl" src="sample.mp3" loop preload="auto"></audio>
+
+<script>
+  // ===== AUDIO SETUP =====
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  let audioBuffer = null;
+  let bufferSource = null;
+  let gainNode = null;
+
+  const SCRATCH_SMOOTHING = 0.12;
+  const RETURN_DURATION = 300; // ms zum Zurückfahren
+  let currentPlaybackRate = 1.0;
+  let isDragging = false;
+  let lastX = 0;
+  let dragStartX = 0;
+
+  // ===== RETURN-TO-POSITION STATE =====
+  let isReturning = false;
+  let returnStartTime = 0;
+  let returnStartPos = 0;
+  let returnTargetPos = 0;
+
+  // ===== LOAD AUDIO =====
+  async function loadAudioBuffer() {
+    try {
+      const response = await fetch('sample.mp3');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const arrayBuffer = await response.arrayBuffer();
+      audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      console.log('✓ Audio geladen:', audioBuffer.duration, 's');
+    } catch (error) {
+      console.error('✗ Audio-Lade-Fehler:', error.message);
+    }
+  }
+
+  // ===== CREATE & START BUFFER SOURCE =====
+  function createBufferSource() {
+    if (bufferSource) bufferSource.stop();
+
+    bufferSource = audioContext.createBufferSource();
+    bufferSource.buffer = audioBuffer;
+    bufferSource.loop = true;
+    bufferSource.playbackRate.value = 1.0;
+
+    bufferSource.connect(gainNode);
+    bufferSource.start(0);
+
+    console.log('✓ BufferSource erstellt und gestartet');
+  }
+
+  // ===== SETUP GAIN NODE =====
+  gainNode = audioContext.createGain();
+  gainNode.connect(audioContext.destination);
+  gainNode.gain.value = 0.5;
+
+  // ===== LOAD AUDIO & START =====
+  loadAudioBuffer().then(() => {
+    if (audioBuffer) createBufferSource();
+  });
+
+  // ===== MOUSE/TOUCH EVENTS =====
+  const canvas = document.getElementById('turntableCanvas');
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (!audioBuffer || !bufferSource) return;
+    isDragging = true;
+    dragStartX = lastX = e.clientX;
+    isReturning = false; // Abbrechen falls Rückkehr läuft
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || isReturning) return;
+
+    const deltaX = e.clientX - lastX;
+    currentPlaybackRate += (deltaX * 0.005);
+    currentPlaybackRate = Math.max(0.3, Math.min(3.0, currentPlaybackRate));
+
+    lastX = e.clientX;
+    bufferSource.playbackRate.value = currentPlaybackRate;
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+
+    // ===== SPEICHERE AKTUELLE POSITION =====
+    returnStartPos = bufferSource.context.currentTime % audioBuffer.duration;
+    returnTargetPos = returnStartPos;
+
+    // ===== STARTE RÜCKKEHR-ANIMATION =====
+    isReturning = true;
+    returnStartTime = performance.now();
+  });
+
+  // ===== ANIMATION LOOP =====
+  function animationLoop(now) {
+    const canvas = document.getElementById('turntableCanvas');
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = 150;
+
+    // Hintergrund
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ===== HANDLE RETURN-TO-POSITION =====
+    if (isReturning) {
+      const elapsed = performance.now() - returnStartTime;
+      const progress = Math.min(elapsed / RETURN_DURATION, 1.0);
+
+      // Easing: ease-out (schnell anfangen, langsam enden)
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      // Interpoliere PlaybackRate von aktuell → 1.0
+      const currentRate = currentPlaybackRate + (1.0 - currentPlaybackRate) * easeProgress;
+      bufferSource.playbackRate.value = currentRate;
+
+      if (progress >= 1.0) {
+        isReturning = false;
+        currentPlaybackRate = 1.0;
+        bufferSource.playbackRate.value = 1.0;
+      }
+    } else if (!isDragging) {
+      // ===== SMOOTHING: Zurück zu 1.0 =====
+      currentPlaybackRate += (1.0 - currentPlaybackRate) * SCRATCH_SMOOTHING;
+      bufferSource.playbackRate.value = currentPlaybackRate;
+    }
+
+    // ===== BERECHNE ROTATIONSWINKEL =====
+    const playbackRate = bufferSource.playbackRate.value;
+    const rotation = (playbackRate * now * 0.1) % 360;
+
+    // Schallplatte zeichnen
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rillen
+    for (let i = 0; i < 20; i++) {
+      ctx.strokeStyle = `rgba(100, 100, 100, ${0.5 - i * 0.02})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius - i * 7, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle = '#888';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TURNTABLE', centerX, centerY - 20);
+    ctx.font = '12px Arial';
+    ctx.fillText(`${(playbackRate * 33.33).toFixed(1)} RPM`, centerX, centerY + 20);
+
+    // Zeiger (markiert aktuelle Position)
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -radius + 20);
+    ctx.stroke();
+    ctx.restore();
+
+    requestAnimationFrame(animationLoop);
+  }
+
+  animationLoop(0);
+</script>
+
+
+
+<!--
+  FIX #1 – PFLICHT: Dieses <audio>-Tag MUSS im HTML stehen,
+  direkt vor </body>. Es ersetzt den fetch()-Ansatz vollständig.
+  sample.mp3 muss im selben Ordner wie turntable.html liegen.
+-->
+<audio id="audioEl" src="sample.mp3" loop preload="auto"></audio>
+
+<!--
+  Lautstärke-Regler ebenfalls im HTML ergänzen,
+  innerhalb von <div class="turntable-body">, vor den Buttons:
+
+  <div class="volume-row">
+    <span>🔈</span>
+    <input type="range" id="volumeSlider" min="0" max="1"
+           step="0.01" value="0.8">
+    <span>🔊</span>
+  </div>
+
+  CSS dafür (in den <style>-Block):
+
+  .volume-row {
+    display: flex; align-items: center;
+    gap: 10px; font-size: 0.85rem; color: #aaa;
+  }
+  input[type=range] { accent-color: #f0a500; width: 120px; }
+-->
+</body>
+</html>
