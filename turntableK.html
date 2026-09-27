@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Flash – Clock Theory Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 200, 120, 0.22), transparent 100%),
+    linear-gradient(180deg, #a35b2f 0%, #4a2718 100%);
+  color: #fff2e6;
+  font-family: 'Impact', 'Arial Black', 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+h1 {
+  font-size: clamp(1.2rem, 4vw, 2rem);
+  color: #eef2ff;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: clamp(0.8rem, 2.5vw, 1rem);
+  color: #667085;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.turntable-body {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 30px;
+  border: 1px solid #d9dfeb;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.record-container {
+  position: relative;
+  width: min(300px, 80vw);
+  height: min(300px, 80vw);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.record-container:active { cursor: grabbing; }
+
+.record {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-image: repeating-radial-gradient(
+    circle at center,
+    #111 0px,
+    #000 2px,
+    #111 4px,
+    #000 6px
+  );
+  box-shadow: 0 0 0 3px #222, 0 8px 22px rgba(0,0,0,0.35);
+  transition: box-shadow 0.2s;
+}
+
+.record.held {
+  box-shadow: 0 0 0 3px #4f7cff, 0 8px 22px rgba(79,124,255,0.25);
+}
+
+.record-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 35%;
+  height: 35%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffd56a, #f0a500);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.8rem, 2.5vw, 0.8rem);
+  font-weight: bold;
+  color: #1d2330;
+  text-align: center;
+  pointer-events: none;
+  line-height: 1.2;
+  border: 1px solid #d39a00;
+}
+
+.record-hole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #222;
+  pointer-events: none;
+}
+
+.clock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.status-display {
+  background: #f3f6fb;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  color: #1c7c3a;
+  font-family: monospace;
+  min-width: 220px;
+  text-align: center;
+  border: 1px solid #d6deea;
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: normal;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  font-family: "Courier New", sans-serif;
+}
+
+.btn:active { transform: scale(0.96); }
+
+.btn-start { background: #4f7cff; color: #fff; }
+.btn-stop  { background: #e05555; color: #fff; }
+.btn-reset { background: #e9edf5; color: #1d2330; border: 1px solid #cfd7e6; }
+
+/* Kick-Button: aus = grau, ein = orange */
+.btn-kick       { background: #e9edf5; color: #1d2330; border: 1px solid #cfd7e6; }
+.btn-kick.kick-on { background: #f0a500; color: #fff; border-color: #c07800; }
+
+.scratch-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #c7cfdb;
+  display: inline-block;
+  margin-right: 6px;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+
+.scratch-indicator.active {
+  background: #2ecc71;
+  box-shadow: 0 0 8px #2ecc71;
+}
+
+.hint {
+  color: #667085;
+  font-size: 0.8rem;
+  text-align: center;
+  margin-top: 8px;
+  max-width: 340px;
+}
+
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #667085;
+}
+
+input[type=range] {
+  accent-color: #4f7cff;
+  width: 120px;
+}
+
+/* ── Kick-Sektion ── */
+.kick-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #f3f6fb;
+  border: 1px solid #d6deea;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.kick-section label {
+  font-size: 0.8rem;
+  color: #667085;
+  font-family: "Courier New", monospace;
+}
+
+.kick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bpm-display {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #f0a500;
+  font-family: "Courier New", monospace;
+  min-width: 60px;
+  text-align: center;
+}
+
+#bpmSlider {
+  accent-color: #f0a500;
+  width: 140px;
+}
+    </style>
+</head>
+
+<body>
+    <p>&nbsp;</p>
+    <h1>Grandmaster Flash's Clock Theory</h1>
+    <p>&nbsp;</p>
+
+    <div class="turntable-body">
+
+        <div class="status-display">
+            <span class="scratch-indicator" id="scratchLight"></span>
+            <span id="statusText">Bereit – drücke START</span>
+        </div>
+
+        <div class="record-container" id="recordContainer">
+            <div class="record" id="record">
+                <div class="record-label">
+                    <span>FLASH</span>
+                    <span>RECORDS</span>
+                    <span style="font-size:0.8em;">33⅓ RPM</span>
+                </div>
+                <div class="record-hole"></div>
+            </div>
+            <div id="recordReflection"></div>
+
+            <svg class="clock-overlay" viewBox="0 0 300 300">
+                <circle cx="150" cy="150" r="145" fill="none" stroke="#f0a500" stroke-width="1" stroke-dasharray="4 6" opacity="0.4" />
+                <text x="150" y="22" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">12</text>
+                <line x1="150" y1="30" x2="150" y2="48" stroke="#f0a500" stroke-width="2" opacity="0.7" />
+                <text x="278" y="155" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">3</text>
+                <line x1="270" y1="150" x2="252" y2="150" stroke="#f0a500" stroke-width="2" opacity="0.7" />
+                <text x="150" y="292" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">6</text>
+                <line x1="150" y1="270" x2="150" y2="252" stroke="#f0a500" stroke-width="2" opacity="0.7" />
+                <text x="22" y="155" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">9</text>
+                <line x1="30" y1="150" x2="48" y2="150" stroke="#f0a500" stroke-width="2" opacity="0.7" />
+                <text x="245" y="60" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">1:30</text>
+                <text x="245" y="248" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">4:30</text>
+                <text x="55" y="248" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">7:30</text>
+                <text x="55" y="60" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">10:30</text>
+                <line id="needle" x1="150" y1="150" x2="150" y2="20" stroke="#ff4444" stroke-width="2.5" stroke-linecap="round" opacity="0.85" />
+                <circle cx="150" cy="150" r="5" fill="#ff4444" opacity="0.85" />
+            </svg>
+        </div>
+
+        <div class="volume-row">
+            <span>–</span>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8">
+            <span>+</span>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-start" id="btnStart">▶ START</button>
+            <button class="btn btn-stop"  id="btnStop">⏹ STOP</button>
+            <button class="btn btn-reset" id="btnReset">↺ RESET</button>
+        </div>
+
+        <!-- ── BASSDRUM SEKTION ── -->
+        <div class="kick-section">
+            <div class="kick-row">
+                <button class="btn btn-kick" id="btnKick">KICK AUS</button>
+            </div>
+            <label for="bpmSlider">BPM: <span id="bpmValue">120</span></label>
+            <input type="range" id="bpmSlider" min="60" max="200" step="1" value="120">
+        </div>
+
+    </div>
+
+    <p class="hint">
+        Die rote Nadel zeigt die Clock-Position.
+    </p>
+
+    <audio id="audioEl" src="sample.mp3" loop preload="auto"></audio>
+
+    <script>
+    // ── Bestehende Elemente ──────────────────────────────────────────────────
+    const audioEl         = document.getElementById('audioEl');
+    const recordEl        = document.getElementById('record');
+    const recordContainer = document.getElementById('recordContainer');
+    const scratchLight    = document.getElementById('scratchLight');
+    const statusText      = document.getElementById('statusText');
+    const needle          = document.getElementById('needle');
+
+    let isDragging    = false;
+    let containerRect = null;
+    let plateRotation = 0;
+
+    // ===== HILFSFUNKTION: Winkel aus X/Y berechnen =====
+    function angleFromPoint(clientX, clientY) {
+        const centerX = containerRect.left + containerRect.width  / 2;
+        const centerY = containerRect.top  + containerRect.height / 2;
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        return (Math.atan2(dy, dx) * (180 / Math.PI) + 90 + 360) % 360;
+    }
+
+    // ===== HILFSFUNKTION: Drag-Start =====
+    function startDrag(clientX, clientY) {
+        if (audioEl.paused) return;
+        isDragging    = true;
+        containerRect = recordContainer.getBoundingClientRect();
+        recordEl.classList.add('held');
+        scratchLight.classList.add('active');
+        applyDrag(clientX, clientY);
+    }
+
+    // ===== HILFSFUNKTION: Drag-Bewegung =====
+    function applyDrag(clientX, clientY) {
+        if (!isDragging || !containerRect) return;
+        plateRotation = angleFromPoint(clientX, clientY);
+        const duration = audioEl.duration || 1;
+        audioEl.currentTime = (plateRotation / 360) * duration;
+        updateRotation();
+    }
+
+    // ===== HILFSFUNKTION: Drag-Ende =====
+    function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        recordEl.classList.remove('held');
+        scratchLight.classList.remove('active');
+        containerRect = null;
+    }
+
+    // ===== MOUSE EVENTS =====
+    recordContainer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startDrag(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousemove', (e) => { applyDrag(e.clientX, e.clientY); });
+    document.addEventListener('mouseup',   ()  => { endDrag(); });
+
+    // ===== TOUCH EVENTS =====
+    recordContainer.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        startDrag(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        applyDrag(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    document.addEventListener('touchend',    () => { endDrag(); });
+    document.addEventListener('touchcancel', () => { endDrag(); });
+
+    // ===== BUTTONS =====
+    document.getElementById('btnStart').addEventListener('click', () => {
+        // AudioContext bei User-Geste entsperren (wichtig für Safari/iOS)
+        if (kickAudioCtx && kickAudioCtx.state === 'suspended') {
+            kickAudioCtx.resume();
+        }
+        audioEl.play();
+        statusText.textContent = 'Drag the record to scratch!';
+    });
+
+    document.getElementById('btnStop').addEventListener('click', () => {
+        audioEl.pause();
+        statusText.textContent = 'Stopped';
+        scratchLight.classList.remove('active');
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        plateRotation = 0;
+        isDragging    = false;
+        recordEl.style.transform = 'rotate(0deg)';
+        needle.setAttribute('transform', 'rotate(0 150 150)');
+        statusText.textContent = 'Reset';
+        scratchLight.classList.remove('active');
+    });
+
+    // ===== VOLUME =====
+    document.getElementById('volumeSlider').addEventListener('input', (e) => {
+        audioEl.volume = parseFloat(e.target.value);
+    });
+
+    // ===== ROTATION UPDATEN =====
+    function updateRotation() {
+        recordEl.style.transform = `rotate(${plateRotation}deg)`;
+        needle.setAttribute('transform', `rotate(${plateRotation} 150 150)`);
+    }
+
+    // ===== ANIMATION LOOP =====
+    function animationLoop() {
+        if (!isDragging && !audioEl.paused) {
+            const duration = audioEl.duration || 1;
+            plateRotation  = (audioEl.currentTime / duration) * 360;
+            updateRotation();
+        }
+
+        const t       = audioEl.currentTime;
+        const minutes = Math.floor(t / 60);
+        const seconds = (t % 60).toFixed(2);
+        statusText.textContent =
+            `${minutes}:${seconds.padStart(5, '0')} | ${plateRotation.toFixed(0)}°`;
+
+        requestAnimationFrame(animationLoop);
+    }
+
+    animationLoop();
+
+    // =========================================================================
+    // ── BASSDRUM (Web Audio API, lookahead scheduler) ─────────────────────────
+    // =========================================================================
+
+    let kickAudioCtx   = null;
+    let kickGainNode   = null;
+    let kickRunning    = false;
+    let kickBPM        = 120;
+    let nextKickTime   = 0;
+    let kickSchedulerId = null;
+
+    const LOOKAHEAD         = 0.12;  // Sekunden vorausplanen
+    const SCHEDULE_INTERVAL = 50;    // ms zwischen Scheduler-Aufrufen
+
+    // Lazy-Init: AudioContext erst bei User-Geste anlegen
+    function getKickCtx() {
+        if (!kickAudioCtx) {
+            kickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            kickGainNode = kickAudioCtx.createGain();
+            kickGainNode.gain.value = 1.0;
+            kickGainNode.connect(kickAudioCtx.destination);
+        }
+        return kickAudioCtx;
+    }
+
+    // Einen einzelnen Kick zum Zeitpunkt `when` synthetisieren
+    function synthesizeKick(when) {
+        const ctx = getKickCtx();
+
+        // Sinus-Oszillator: Pitch-Sweep 150 Hz → 40 Hz in 80 ms
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, when);
+        osc.frequency.exponentialRampToValueAtTime(40, when + 0.08);
+
+        // Amplituden-Hüllkurve: Anschlag sofort, Decay 220 ms
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(1.0, when);
+        env.gain.exponentialRampToValueAtTime(0.001, when + 0.22);
+
+        osc.connect(env);
+        env.connect(kickGainNode);
+        osc.start(when);
+        osc.stop(when + 0.25);
+
+        // Kurzer Noise-Burst als Click/Transient (~20 ms)
+        const bufSize    = Math.ceil(ctx.sampleRate * 0.02);
+        const noiseBuf   = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const data       = noiseBuf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise    = ctx.createBufferSource();
+        noise.buffer   = noiseBuf;
+
+        const noiseEnv = ctx.createGain();
+        noiseEnv.gain.setValueAtTime(0.35, when);
+        noiseEnv.gain.exponentialRampToValueAtTime(0.001, when + 0.02);
+
+        noise.connect(noiseEnv);
+        noiseEnv.connect(kickGainNode);
+        noise.start(when);
+        noise.stop(when + 0.02);
+    }
+
+    // Lookahead-Scheduler: plant Kicks im Voraus, drift-frei
+    function scheduleKicks() {
+        const ctx          = getKickCtx();
+        const beatInterval = 60 / kickBPM;
+
+        while (nextKickTime < ctx.currentTime + LOOKAHEAD) {
+            synthesizeKick(nextKickTime);
+            nextKickTime += beatInterval;
+        }
+    }
+
+    function startKick() {
+        if (kickRunning) return;
+        const ctx    = getKickCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+        kickRunning  = true;
+        nextKickTime = ctx.currentTime + 0.05;
+        kickSchedulerId = setInterval(scheduleKicks, SCHEDULE_INTERVAL);
+        updateKickBtn();
+    }
+
+    function stopKick() {
+        if (!kickRunning) return;
+        kickRunning = false;
+        clearInterval(kickSchedulerId);
+        kickSchedulerId = null;
+        updateKickBtn();
+    }
+
+    function updateKickBtn() {
+        const btn = document.getElementById('btnKick');
+        if (kickRunning) {
+            btn.textContent = 'KICK AN';
+            btn.classList.add('kick-on');
+        } else {
+            btn.textContent = 'KICK AUS';
+            btn.classList.remove('kick-on');
+        }
+        document.getElementById('bpmDisplay').textContent = kickBPM + ' BPM';
+    }
+
+    // Kick-Button: ein/aus toggeln
+    document.getElementById('btnKick').addEventListener('click', () => {
+        kickRunning ? stopKick() : startKick();
+    });
+
+    // BPM-Slider
+    document.getElementById('bpmSlider').addEventListener('input', (e) => {
+        kickBPM = parseInt(e.target.value, 10);
+        document.getElementById('bpmValue').textContent = kickBPM;
+        document.getElementById('bpmDisplay').textContent = kickBPM + ' BPM';
+
+        // Wenn Kick läuft: sofort neu starten damit neues Tempo greift
+        if (kickRunning) {
+            stopKick();
+            startKick();
+        }
+    });
+    </script>
+
+</body>
+</html>
