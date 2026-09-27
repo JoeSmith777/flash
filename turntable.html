@@ -111,8 +111,12 @@ h1 {
   position: relative;
   width: min(300px, 80vw);
   height: min(300px, 80vw);
+  /* touch-action: none verhindert Scroll-Konflikte beim Scratchen */
   touch-action: none;
   cursor: grab;
+  /* Verhindert Text-Selektion beim Drag auf Desktop */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .record-container:active { cursor: grabbing; }
@@ -294,22 +298,20 @@ input[type=range] {
   font-size: 0.85rem;
   color: #667085;
 }
-  </style>
+    </style>
 </head>
 
 <body>
     <p>&nbsp;</p>
     <h1>Grandmaster Flash's Clock Theory</h1>
     <p>&nbsp;</p>
-    <!-- ERKLÄRUNGSTEXT -->
-    <!-- PLATTENSPIELER -->
+
     <div class="turntable-body">
-        <!-- Statusanzeige -->
         <div class="status-display">
             <span class="scratch-indicator" id="scratchLight"></span>
             <span id="statusText">Bereit – drücke START</span>
         </div>
-        <!-- Die Schallplatte -->
+
         <div class="record-container" id="recordContainer">
             <div class="record" id="record">
                 <div class="record-label">
@@ -319,87 +321,159 @@ input[type=range] {
                 </div>
                 <div class="record-hole"></div>
             </div>
-    <div id="recordReflection"></div>
+            <div id="recordReflection"></div>
 
-            <!-- SVG-Overlay mit Uhrzeiger-Markierungen (bewegt sich NICHT mit) -->
-             <svg class="clock-overlay" viewBox="0 0 300 300">
+            <svg class="clock-overlay" viewBox="0 0 300 300">
                 <circle cx="150" cy="150" r="145" fill="none" stroke="#f0a500" stroke-width="1" stroke-dasharray="4 6" opacity="0.4" />
-                <!-- 12 Uhr -->
                 <text x="150" y="22" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">12</text>
                 <line x1="150" y1="30" x2="150" y2="48" stroke="#f0a500" stroke-width="2" opacity="0.7" />
-                <!-- 3 Uhr -->
                 <text x="278" y="155" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">3</text>
                 <line x1="270" y1="150" x2="252" y2="150" stroke="#f0a500" stroke-width="2" opacity="0.7" />
-                <!-- 6 Uhr -->
                 <text x="150" y="292" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">6</text>
                 <line x1="150" y1="270" x2="150" y2="252" stroke="#f0a500" stroke-width="2" opacity="0.7" />
-                <!-- 9 Uhr -->
                 <text x="22" y="155" text-anchor="middle" fill="#f0a500" font-size="14" font-weight="bold" font-family="Arial">9</text>
                 <line x1="30" y1="150" x2="48" y2="150" stroke="#f0a500" stroke-width="2" opacity="0.7" />
-                <!-- Zwischenpositionen -->
                 <text x="245" y="60" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">1:30</text>
                 <text x="245" y="248" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">4:30</text>
                 <text x="55" y="248" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">7:30</text>
                 <text x="55" y="60" text-anchor="middle" fill="#f0a500" font-size="10" opacity="0.5" font-family="Arial">10:30</text>
-                <!-- Rote Nadel (dreht sich mit der Platte mit) -->
                 <line id="needle" x1="150" y1="150" x2="150" y2="20" stroke="#ff4444" stroke-width="2.5" stroke-linecap="round" opacity="0.85" />
                 <circle cx="150" cy="150" r="5" fill="#ff4444" opacity="0.85" />
             </svg>
-        </div><!-- Ende record-container -->
-        <!-- Lautstärke-Regler -->
+        </div>
+
         <div class="volume-row">
             <span>–</span>
             <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8">
             <span>+</span>
         </div>
-        <!-- Steuerknöpfe -->
+
         <div class="controls">
             &nbsp;&nbsp;<button class="btn btn-start" id="btnStart">▶ START</button>&nbsp;&nbsp;
             <button class="btn btn-stop" id="btnStop">⏹ STOP</button>&nbsp;&nbsp;
             <button class="btn btn-reset" id="btnReset">↺ RESET</button>&nbsp;&nbsp;
         </div>
-    </div><!-- Ende turntable-body -->
+    </div>
+
     <p class="hint">
         Die rote Nadel zeigt die Clock-Position.
     </p>
-    <!--
-    WICHTIG: Das <audio>-Tag lädt sample.mp3 ohne fetch() und ohne Webserver.
-    Es funktioniert direkt per file:// im Browser.
-    Die Datei sample.mp3 muss im selben Ordner wie turntable.html liegen.
-  -->
+
     <audio id="audioEl" src="sample.mp3" loop preload="auto"></audio>
+
     <script>
-    const audioEl = document.getElementById('audioEl');
-    const recordEl = document.getElementById('record');
+    const audioEl       = document.getElementById('audioEl');
+    const recordEl      = document.getElementById('record');
     const recordContainer = document.getElementById('recordContainer');
+const scratchLight  = document.getElementById('scratchLight');
+    const statusText    = document.getElementById('statusText');
+    const needle        = document.getElementById('needle');
 
-    let isDragging = false;
+    let isDragging    = false;
     let containerRect = null;
-
-    // **Die Platte folgt direkt der Maus-Position auf dem Container**
     let plateRotation = 0;
+
+    // ===== HILFSFUNKTION: Winkel aus X/Y berechnen =====
+    function angleFromPoint(clientX, clientY) {
+        const centerX = containerRect.left + containerRect.width  / 2;
+        const centerY = containerRect.top  + containerRect.height / 2;
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        // 0° = 12 Uhr, im Uhrzeigersinn
+        return (Math.atan2(dy, dx) * (180 / Math.PI) + 90 + 360) % 360;
+    }
+
+    // ===== HILFSFUNKTION: Drag-Start =====
+    function startDrag(clientX, clientY) {
+        if (audioEl.paused) return;
+        isDragging    = true;
+        containerRect = recordContainer.getBoundingClientRect();
+        recordEl.classList.add('held');
+        scratchLight.classList.add('active');
+        applyDrag(clientX, clientY);
+    }
+
+    // ===== HILFSFUNKTION: Drag-Bewegung =====
+    function applyDrag(clientX, clientY) {
+        if (!isDragging || !containerRect) return;
+        plateRotation = angleFromPoint(clientX, clientY);
+
+        // Audio-Position folgt dem Winkel
+        const duration = audioEl.duration || 1;
+        audioEl.currentTime = (plateRotation / 360) * duration;
+
+        updateRotation();
+    }
+
+    // ===== HILFSFUNKTION: Drag-Ende =====
+    function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        recordEl.classList.remove('held');
+        scratchLight.classList.remove('active');
+        containerRect = null;
+    }
+
+    // ===== MOUSE EVENTS =====
+    recordContainer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startDrag(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        applyDrag(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mouseup', () => {
+        endDrag();
+    });
+
+    // ===== TOUCH EVENTS =====
+    // touchstart direkt auf dem Container – löst Audio-Geste aus
+    recordContainer.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // verhindert Scroll und Ghost-Click
+        const touch = e.changedTouches[0];
+        startDrag(touch.clientX, touch.clientY);
+    }, { passive: false }); // passive:false nötig für preventDefault()
+
+    // touchmove am document – damit Finger auch außerhalb des Containers
+    // weiter tracked wird (genau wie mousemove)
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault(); // verhindert Seiten-Scroll während Scratchen
+        const touch = e.changedTouches[0];
+        applyDrag(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        endDrag();
+    });
+
+    document.addEventListener('touchcancel', () => {
+        endDrag();
+    });
 
     // ===== BUTTONS =====
     document.getElementById('btnStart').addEventListener('click', () => {
         audioEl.play();
-        document.getElementById('statusText').textContent = 'Drag the record to scratch!';
+        statusText.textContent = 'Drag the record to scratch!';
     });
 
     document.getElementById('btnStop').addEventListener('click', () => {
         audioEl.pause();
-        document.getElementById('statusText').textContent = 'Stopped';
-        document.getElementById('scratchLight').classList.remove('active');
+        statusText.textContent = 'Stopped';
+        scratchLight.classList.remove('active');
     });
 
     document.getElementById('btnReset').addEventListener('click', () => {
         audioEl.pause();
         audioEl.currentTime = 0;
         plateRotation = 0;
-        isDragging = false;
-        recordEl.style.transform = `rotate(0deg)`;
-        document.getElementById('needle').setAttribute('transform', `rotate(0 150 150)`);
-        document.getElementById('statusText').textContent = 'Reset';
-        document.getElementById('scratchLight').classList.remove('active');
+        isDragging    = false;
+        recordEl.style.transform = 'rotate(0deg)';
+        needle.setAttribute('transform', 'rotate(0 150 150)');
+        statusText.textContent = 'Reset';
+        scratchLight.classList.remove('active');
     });
 
     // ===== VOLUME =====
@@ -407,88 +481,26 @@ input[type=range] {
         audioEl.volume = parseFloat(e.target.value);
     });
 
-    // ===== MOUSE EVENTS =====
-    recordContainer.addEventListener('mousedown', (e) => {
-        if (audioEl.paused) return;
-        isDragging = true;
-        containerRect = recordContainer.getBoundingClientRect();
-        recordContainer.classList.add('held');
-        document.getElementById('scratchLight').classList.add('active');
-        updatePlateFromMouse(e);
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging || !containerRect) return;
-        updatePlateFromMouse(e);
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        recordContainer.classList.remove('held');
-        document.getElementById('scratchLight').classList.remove('active');
-        containerRect = null;
-    });
-
-    recordContainer.addEventListener('mouseleave', () => {
-        if (isDragging) {
-            isDragging = false;
-            recordContainer.classList.remove('held');
-            document.getElementById('scratchLight').classList.remove('active');
-            containerRect = null;
-        }
-    });
-
-    // ===== NEUE FUNKTION: Berechne Winkel aus Maus-Position =====
-    function updatePlateFromMouse(e) {
-        // **Container-Mittelpunkt**
-        const centerX = containerRect.left + containerRect.width / 2;
-        const centerY = containerRect.top + containerRect.height / 2;
-
-        // **Maus-Offset vom Mittelpunkt**
-        const dx = e.clientX - centerX;
-        const dy = e.clientY - centerY;
-
-        // **Winkel berechnen (atan2 gibt Rad zurück, in Grad konvertieren)**
-        // 0° = oben (12 Uhr), dann im Uhrzeigersinn
-        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        angle = (angle + 90 + 360) % 360; // Korrigieren, sodass 0° = 12 Uhr
-
-        plateRotation = angle;
-
-        // **Audio-Position folgt dem Winkel**
-        const duration = audioEl.duration || 1;
-        const newTime = (plateRotation / 360) * duration;
-        audioEl.currentTime = newTime;
-
-        // **Visuell updaten**
-        updateRotation();
-
-        console.log('Angle:', angle.toFixed(1), '° | Time:', newTime.toFixed(2), 's');
-    }
-
     // ===== ROTATION UPDATEN =====
     function updateRotation() {
         recordEl.style.transform = `rotate(${plateRotation}deg)`;
-        document.getElementById('needle').setAttribute('transform', `rotate(${plateRotation} 150 150)`);
+        needle.setAttribute('transform', `rotate(${plateRotation} 150 150)`);
     }
 
     // ===== ANIMATION LOOP =====
     function animationLoop() {
-        const duration = audioEl.duration || 1;
-        const currentTime = audioEl.currentTime;
-
-        // **Wenn NICHT dragging: Rotation folgt natürlich dem Audio-Playback**
-        if (!isDragging) {
-            plateRotation = (currentTime / duration) * 360;
+        if (!isDragging && !audioEl.paused) {
+            const duration = audioEl.duration || 1;
+            plateRotation  = (audioEl.currentTime / duration) * 360;
             updateRotation();
         }
 
-        // **Status anzeigen**
-        const minutes = Math.floor(currentTime / 60);
-        const seconds = (currentTime % 60).toFixed(2);
-        document.getElementById('statusText').textContent =
-            `${minutes}:${seconds.padStart(5, '0')} | Rotation: ${plateRotation.toFixed(0)}°`;
+        // Statusanzeige
+        const t       = audioEl.currentTime;
+        const minutes = Math.floor(t / 60);
+        const seconds = (t % 60).toFixed(2);
+        statusText.textContent =
+            `${minutes}:${seconds.padStart(5, '0')} | ${plateRotation.toFixed(0)}°`;
 
         requestAnimationFrame(animationLoop);
     }
@@ -496,30 +508,5 @@ input[type=range] {
     animationLoop();
     </script>
 
-    <!--
-  FIX #1 – PFLICHT: Dieses <audio>-Tag MUSS im HTML stehen,
-  direkt vor </body>. Es ersetzt den fetch()-Ansatz vollständig.
-  sample.mp3 muss im selben Ordner wie turntable.html liegen.
--->
-    <!--
-  Lautstärke-Regler ebenfalls im HTML ergänzen,
-  innerhalb von <div class="turntable-body">, vor den Buttons:
-
-  <div class="volume-row">
-    <span>🔈</span>
-    <input type="range" id="volumeSlider" min="0" max="1"
-           step="0.01" value="0.8">
-    <span>🔊</span>
-  </div>
-
-  CSS dafür (in den <style>-Block):
-
-  .volume-row {
-    display: flex; align-items: center;
-    gap: 10px; font-size: 0.85rem; color: #aaa;
-  }
-  input[type=range] { accent-color: #f0a500; width: 120px; }
--->
 </body>
-
 </html>
